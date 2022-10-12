@@ -6,6 +6,7 @@
 #define MR1 3
 #define MR2 4
 #define MRP 2
+#define spdPWM 100
 
 #define DEADEND 32
 
@@ -23,8 +24,10 @@ int base = 100;
 int right, front, left;
 float line = 0;
 float pline = 0;
+float eline = 0;
 float Kp = 100;
-float Kd = 0.05;
+float Kd = 5;
+float Ki = 0.01;
 
 void readSensor() {
   sensor = 0;
@@ -45,8 +48,10 @@ void readLine() {
     tot += r;
   }
   line = line / tot;
+  eline += line;
   if (tot == 0)
     line = 0;
+  
 }
 
 void setup() {
@@ -60,23 +65,23 @@ void setup() {
 }
 
 void turnLeft() {
-  m1.setSpeed(255);
-  m2.setSpeed(-255);
+  m1.setSpeed(spdPWM);
+  m2.setSpeed(-spdPWM);
 }
 
 void straight() {
-  m1.setSpeed(255);
-  m2.setSpeed(255);
+  m1.setSpeed(spdPWM);
+  m2.setSpeed(-spdPWM);
 }
 
 void turnRight() {
-  m1.setSpeed(-255);
-  m2.setSpeed(255);
+  m1.setSpeed(-spdPWM);
+  m2.setSpeed(spdPWM);
 }
 
 void hardTurnLeft() {
-  m1.setSpeed(255);
-  m2.setSpeed(-255);
+  m1.setSpeed(spdPWM);
+  m2.setSpeed(-spdPWM);
 }
 
 void linefollow(int t=30) {
@@ -86,13 +91,13 @@ void linefollow(int t=30) {
     readSensor();
     readLine();
 
-    int diff = Kp * line + Kd * (line - pline);
+    int diff = Kp * line + Kd * (line - pline) + Ki * (eline);
     int sped = map(abs(diff), 0, 255, 100, 0);
 
     Serial.println(line);
 
-    m1.setSpeed(constrain(sped - diff, -255, 255));
-    m2.setSpeed(constrain(sped + diff, -255, 255));
+    m1.setSpeed(constrain(sped - diff, -spdPWM, spdPWM));
+    m2.setSpeed(constrain(sped + diff, -spdPWM, spdPWM));
   }
   digitalWrite(DEADEND, LOW);
 }
@@ -106,10 +111,9 @@ void loop() {
   left = (sensor & 0b00011111) == 0b00011111;
 
   if (left || right) {
-    m1.setSpeed(255);
-    m2.setSpeed(255);
-    delay(50);
-    linefollow(450);
+    m1.setSpeed(spdPWM);
+    m2.setSpeed(spdPWM);
+    delay(200+);
 
     front = (sensor & 0b00111100);
   }
@@ -118,18 +122,51 @@ void loop() {
 
   if (left) {
     Serial.println("L");
-    turnLeft();
-    delay(500);
+    while(front)
+    {
+      turnLeft();
+      readSensor();
+      front = (sensor & 0b00011000);
+    }
+
+    while(!front)
+    {
+      turnLeft();
+      readSensor();
+      front = (sensor & 0b00011000);
+    }
+    
   } else if (front) {
     Serial.println("Line Follow");
     linefollow();
   } else if (right) {
     Serial.println("R");
-    turnRight();
-    delay(500);
+    while(front)
+    {
+      turnRight();
+      readSensor();
+      front = (sensor & 0b00011000);
+    }
+
+    while(!front)
+    {
+      turnRight();
+      readSensor();
+      front = (sensor & 0b00011000);
+    }
   } else {
     Serial.println("U");
-    turnRight();
-    delay(1000);
+    while(front)
+    {
+      readSensor();
+      turnRight();
+      front = (sensor & 0b00011000);
+    }
+    while(!front)
+    {
+      readSensor();
+      turnRight();
+      front = (sensor & 0b00011000);
+    }
   }
 }
